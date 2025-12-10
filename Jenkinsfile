@@ -18,17 +18,25 @@ pipeline {
         stage('2. Build & Test') {
             steps {
                 echo '=== Maven container ile derleme ve testler çalıştırılıyor ==='
-                sh '''
-                    # Önce pom.xml var mı kontrol et
-                    ls -la
+                script {
+                    // Jenkins workspace zaten bir volume, oradan build yapalım
+                    def workspaceDir = pwd()
+                    sh """
+                        ls -la
+                        echo "Workspace: ${workspaceDir}"
 
-                    # Maven container'ı çalıştır
-                    docker run --rm \
-                    -v "$(pwd)":/app \
-                    -w /app \
-                    maven:3.9-eclipse-temurin-17 \
-                    mvn clean package
-                '''
+                        # Maven cache için volume oluştur
+                        docker volume create maven-repo || true
+
+                        # Absolute path ile volume mount
+                        docker run --rm \
+                        -v maven-repo:/root/.m2 \
+                        -v "${workspaceDir}":/app \
+                        -w /app \
+                        maven:3.9-eclipse-temurin-17 \
+                        sh -c "ls -la && mvn clean package"
+                    """
+                }
             }
         }
 
