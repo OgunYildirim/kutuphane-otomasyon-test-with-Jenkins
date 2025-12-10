@@ -1,50 +1,64 @@
 pipeline {
-    // Pipeline'ın tamamı Jenkins ana agent'ında çalışır.
     agent any
 
     environment {
-        // Compose dosyanızdaki servis adı
         SERVICE_NAME = 'kutuphane-app'
+        DOCKER_IMAGE_NAME = 'kutuphane-otomasyon'
+        CONTAINER_NAME = 'kutuphane-app-server'
     }
 
     stages {
-        stage('1. Build (Maven Container Içinde Derleme)') {
+        stage('1. Checkout') {
             steps {
-                echo '>> Maven Container içinde proje derleniyor...'
+                echo '=== GitHub deposundan kodlar çekiliyor ==='
+                checkout scm
+            }
+        }
 
-                // Söz Dizimi Hatasını Aşmak için DİREKT DOCKER KOMUTU KULLANILIYOR.
-                // Bu komut, Maven'ı geçici bir container'da çalıştırarak derlemeyi yapar.
-                sh """
+        stage('2. Build & Test') {
+            steps {
+                echo '=== Maven container ile derleme ve testler çalıştırılıyor ==='
+                sh '''
                     docker run --rm \
-                    -v ${PWD}:/usr/src/app \
-                    -v $HOME/.m2:/root/.m2 \
-                    -w /usr/src/app \
-                    maven:3.8.7-jdk-17 \
-                    mvn clean package -DskipTests
+                    -v ${WORKSPACE}:/app \
+                    -w /app \
+                    maven:3.9-eclipse-temurin-17 \
+                    mvn clean package
+                '''
+            }
+        }
+
+        stage('3. Docker Build') {
+            steps {
+                echo '=== Docker imajı oluşturuluyor ==='
+                sh "docker build -t ${DOCKER_IMAGE_NAME}:latest ."
+            }
+        }
+
+        stage('4. Deploy') {
+            steps {
+                echo '=== Eski container durduruluyor ve yeni imaj deploy ediliyor ==='
+                sh """
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                    docker run -d --name ${CONTAINER_NAME} -p 8082:8080 ${DOCKER_IMAGE_NAME}:latest
                 """
-            }
-        }
-
-        stage('2. Dockerize') {
-            steps {
-                echo '>> Docker imajı, docker-compose build ile oluşturuluyor...'
-                sh "docker-compose build ${SERVICE_NAME}"
-            }
-        }
-
-        stage('3. Deploy') {
-            steps {
-                echo ">> docker-compose up ile eski container durdurulup, yeni imaj deploy ediliyor..."
-                sh "docker-compose up -d --no-build ${SERVICE_NAME}"
+                echo '=== Uygulama http://localhost:8082 adresinde çalışıyor ==='
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-            echo 'Pipeline tamamlandı. 🥳'
+            echo '=== Test sonuçları ve JAR dosyası arşivleniyor ==='
+            junit '**/target/surefire-reports/*.xml'
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
         }
-        failure { echo 'CI/CD Pipeline HATA ile sonuçlandı! 🚨' }
+        success {
+            echo '✅ Pipeline başarıyla tamamlandı!'
+        }
+        failure {
+            echo '❌ Pipeline başarısız oldu!'
+        }
     }
 }
