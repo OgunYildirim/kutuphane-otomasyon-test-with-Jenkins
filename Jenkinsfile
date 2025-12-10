@@ -19,18 +19,11 @@ pipeline {
             }
         }
 
-        stage('2. Build & Test (Maven Container)') {
+        stage('2. Build & Test') {
             steps {
-                echo '=== Maven container ile derleme ve testler çalıştırılıyor ==='
+                echo '=== Maven ile derleme ve testler çalıştırılıyor ==='
                 sh '''
-                    ls -la
-                    echo "Jenkins Workspace: ${WORKSPACE}"
-
-                    docker run --rm \
-                    -v ${WORKSPACE}:/app \
-                    -v $HOME/.m2:/root/.m2 \
-                    -w /app \
-                    maven:3.9-eclipse-temurin-17 \
+                    mvn --version
                     mvn clean package
                 '''
             }
