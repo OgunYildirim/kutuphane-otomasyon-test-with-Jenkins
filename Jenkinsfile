@@ -1,20 +1,16 @@
 pipeline {
-    // Pipeline'ın tamamı Jenkins ana agent'ında çalışır.
     agent any
 
     environment {
-        // Compose dosyanızdaki servis adı
-        SERVICE_NAME = 'kutuphane-app'
         DOCKER_IMAGE_NAME = 'kutuphane-otomasyon'
         CONTAINER_NAME = 'kutuphane-app-server'
-        HOST_PORT = '8082' // Uygulamanın host portu
+        HOST_PORT = '8082'
     }
 
     stages {
         stage('1. Checkout') {
             steps {
                 echo '=== GitHub deposundan kodlar çekiliyor ==='
-                // SCM ayarları Job içinde tanımlandığı için bu yeterlidir.
                 checkout scm
             }
         }
@@ -29,20 +25,21 @@ pipeline {
             }
         }
 
-        stage('3. Dockerize') {
+        stage('3. Docker Build') {
             steps {
-                echo '=== Docker imajı, docker-compose build ile oluşturuluyor ==='
-                // Compose Build'i kullanarak imajı oluşturur.
-                sh "docker-compose build ${SERVICE_NAME}"
+                echo '=== Docker imajı oluşturuluyor ==='
+                sh "docker build -t ${DOCKER_IMAGE_NAME}:latest ."
             }
         }
 
         stage('4. Deploy') {
             steps {
                 echo '=== Eski container durduruluyor ve yeni imaj deploy ediliyor ==='
-                // Compose Up, eski container'ı durdurup yenisini ayağa kaldırır.
-                sh "docker-compose up -d --no-build ${SERVICE_NAME}"
-
+                sh """
+                    docker stop ${CONTAINER_NAME} || true
+                    docker rm ${CONTAINER_NAME} || true
+                    docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:8080 ${DOCKER_IMAGE_NAME}:latest
+                """
                 echo "=== Uygulama http://localhost:${HOST_PORT} adresinde çalışıyor ==="
             }
         }
@@ -62,3 +59,4 @@ pipeline {
         }
     }
 }
+
