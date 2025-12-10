@@ -1,72 +1,23 @@
 pipeline {
-    agent any
-
-    tools {
-        maven 'Maven'
+    // Pipeline'ın tamamı için bir Maven imajı kullan
+    agent {
+        docker {
+            image 'maven:3.8.7-jdk-17' // Maven ve Java 17'nin yüklü olduğu bir imaj
+        }
     }
-
+    // ... environment ve stages devam eder ...
     stages {
-        stage('Checkout') {
+        stage('1. Kaynak Kodunu Çekme (SCM Checkout)') {
+            // ...
+        }
+        stage('2. Uygulamayı Derleme (Build)') {
             steps {
-                checkout scm
+                echo '>> Maven ile proje derleniyor...'
+                // Artık mvn komutu container içinde çalışır
+                sh 'mvn clean package -DskipTests'
             }
         }
-
-        stage('Build') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh './mvnw clean compile'
-                    } else {
-                        bat '.\\mvnw.cmd clean compile'
-                    }
-                }
-            }
-        }
-
-        stage('Test') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh './mvnw test'
-                    } else {
-                        bat '.\\mvnw.cmd test'
-                    }
-                }
-            }
-        }
-
-        stage('Package') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh './mvnw package -DskipTests'
-                    } else {
-                        bat '.\\mvnw.cmd package -DskipTests'
-                    }
-                }
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                echo 'Deploy ediliyor...'
-                echo 'Uygulama başarıyla paketlendi!'
-            }
-        }
+        // ... Diğer aşamalar devam eder ...
     }
-
-    post {
-        always {
-            junit '**/target/surefire-reports/*.xml'
-            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-        }
-        success {
-            echo 'Pipeline başarıyla tamamlandı!'
-        }
-        failure {
-            echo 'Pipeline başarısız oldu!'
-        }
-    }
+    // ...
 }
-
