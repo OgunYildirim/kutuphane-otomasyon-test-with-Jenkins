@@ -1,46 +1,36 @@
 version: '3.8'
 
 services:
+  # 1. Jenkins CI Sunucusu (Host Docker'a erişim dahil)
   jenkins:
     image: jenkins/jenkins:lts
     privileged: true
     user: root
     ports:
-      - "8081:8080"
+      - "8081:8080"        # Jenkins Web Arayüzü
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - JENKINS_OPTS=--prefix=/jenkins
+      - /var/run/docker.sock:/var/run/docker.sock # KRİTİK: Docker Build/Deploy için erişim
+    # - JENKINS_OPTS kaldırıldı.
     container_name: jenkins-server
     networks:
-      - kutuphane-network
+      - ci-cd-network
 
-  kutuphane-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: kutuphane-otomasyon
-    ports:
-      - "8080:8080"
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - JAVA_OPTS=-Xmx512m -Xms256m
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/kitaplar"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+  # 2. İlk Çalıştırma ve Test Amaçlı Uygulama Tanımı (Opsiyonel)
+  #    Bu servis, Jenkins'in DEPLOYMENT aşamasında AYNI isimle (kutuphane-app-server)
+  #    tekrar ayağa kaldırılacağı için, compose dosyasından tamamen kaldırılması önerilir.
+  #    Ancak testi kolaylaştırmak için burada ismini değiştirerek bırakabiliriz.
+  initial-app-placeholder:
+    image: alpine/git # Jenkins build'i başlamadan sadece bir yer tutucu imajı.
+    container_name: kutuphane-app-placeholder
+    # Bu servisin portları kaldırıldı, çünkü asıl deploy Jenkins'ten gelecek.
     networks:
-      - kutuphane-network
+      - ci-cd-network
 
 volumes:
   jenkins_home:
 
 networks:
-  kutuphane-network:
+  ci-cd-network:
     driver: bridge
-
