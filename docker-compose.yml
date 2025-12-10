@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. Jenkins CI Sunucusu
+  # 1. Jenkins CI Sunucusu (Docker CLI Erişimi Eklendi)
   jenkins:
     image: jenkins/jenkins:lts
     privileged: true
@@ -11,24 +11,26 @@ services:
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock # KRİTİK: Jenkins'in Docker komutlarını çalıştırması için
+      # KRİTİK 1: Docker Daemon'a erişim (Önceki hatayı çözen kısım)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # KRİTİK 2: "docker: not found" hatasını çözer.
+      # Host makinedeki Docker CLI binary dosyasını container'a mount eder.
+      - /usr/bin/docker:/usr/bin/docker
     container_name: jenkins-server
     networks:
       - ci-cd-network
 
-  # 2. Uygulama Servisi (Jenkins'in kullanması için burada tanımlı OLMALIDIR)
-  # Jenkins, 'docker-compose up kutuphane-app' dediğinde bu tanımı kullanacaktır.
+  # 2. Uygulama Servisi (Port Çakışması Giderildi)
   kutuphane-app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: kutuphane-app-server
+    # Port Çakışması Giderildi: Jenkins 8081'i kullandığı için, uygulama 8082'de yayınlanacak.
     ports:
-      - "8081:8080" # Host'taki 8081'i kullanacağız
+      - "8082:8080" # Host'ta 8082, Container'da 8080
     networks:
       - ci-cd-network
-    # Deployment Jenkins'e ait olduğu için 'restart: unless-stopped' gibi ayarlar burada opsiyoneldir.
-
 
 volumes:
   jenkins_home:
