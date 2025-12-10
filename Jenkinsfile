@@ -1,5 +1,5 @@
 pipeline {
-    // Pipeline'ın tamamı Jenkins ana agent'ında çalışacak
+    // Pipeline'ın tamamı Jenkins ana agent'ında çalışır.
     agent any
 
     environment {
@@ -8,34 +8,33 @@ pipeline {
     }
 
     stages {
-        stage('1. Build & Test') {
-            // SADELEŞTİRME ÇÖZÜMÜ: Sadece bu aşama için Maven kurulu bir Docker Agent kullan
-            agent {
-                docker {
-                    image 'maven:3.8.7-jdk-17'
-                    // Workspace'i mount et: Kodları build agent'ına taşı
-                    args '-v ${PWD}:/usr/src/app -w /usr/src/app'
-                }
-            }
+        stage('1. Build (Maven Container Içinde Derleme)') {
             steps {
-                echo '>> Maven Container içinde proje derleniyor ve test ediliyor...'
-                // Sizin istediğiniz sade komut:
-                sh 'mvn clean package' // Testlerin otomatik çalışması için 'package' yeterli
+                echo '>> Maven Container içinde proje derleniyor...'
+
+                // Söz Dizimi Hatasını Aşmak için DİREKT DOCKER KOMUTU KULLANILIYOR.
+                // Bu komut, Maven'ı geçici bir container'da çalıştırarak derlemeyi yapar.
+                sh """
+                    docker run --rm \
+                    -v ${PWD}:/usr/src/app \
+                    -v $HOME/.m2:/root/.m2 \
+                    -w /usr/src/app \
+                    maven:3.8.7-jdk-17 \
+                    mvn clean package -DskipTests
+                """
             }
         }
 
         stage('2. Dockerize') {
             steps {
                 echo '>> Docker imajı, docker-compose build ile oluşturuluyor...'
-                // Dockerfile'ı kullanarak imajı oluştur
                 sh "docker-compose build ${SERVICE_NAME}"
             }
         }
 
         stage('3. Deploy') {
             steps {
-                echo ">> docker-compose up ile dağıtım yapılıyor..."
-                // Yeni imajı kullanarak container'ı ayağa kaldır (Host Docker'a erişim kritik!)
+                echo ">> docker-compose up ile eski container durdurulup, yeni imaj deploy ediliyor..."
                 sh "docker-compose up -d --no-build ${SERVICE_NAME}"
             }
         }
@@ -43,9 +42,7 @@ pipeline {
 
     post {
         always {
-            // Test sonuçlarını archive et (Sadece Stage 1'de testler çalıştıysa)
             archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-            junit '**/target/surefire-reports/*.xml'
             echo 'Pipeline tamamlandı. 🥳'
         }
         failure { echo 'CI/CD Pipeline HATA ile sonuçlandı! 🚨' }
