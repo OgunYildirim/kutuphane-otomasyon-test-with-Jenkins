@@ -19,8 +19,12 @@ pipeline {
             steps {
                 echo '=== Maven container ile derleme ve testler çalıştırılıyor ==='
                 sh '''
+                    # Önce pom.xml var mı kontrol et
+                    ls -la
+
+                    # Maven container'ı çalıştır
                     docker run --rm \
-                    -v ${WORKSPACE}:/app \
+                    -v "$(pwd)":/app \
                     -w /app \
                     maven:3.9-eclipse-temurin-17 \
                     mvn clean package
