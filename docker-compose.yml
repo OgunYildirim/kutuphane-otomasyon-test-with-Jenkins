@@ -11,11 +11,8 @@ services:
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      # KRİTİK 1: Docker Daemon'a erişim (Önceki hatayı çözen kısım)
+      # Docker Daemon'a erişim
       - /var/run/docker.sock:/var/run/docker.sock
-      # KRİTİK 2: "docker: not found" hatasını çözer.
-      # Host makinedeki Docker CLI binary dosyasını container'a mount eder.
-      - /usr/bin/docker:/usr/bin/docker
     container_name: jenkins-server
     networks:
       - ci-cd-network
