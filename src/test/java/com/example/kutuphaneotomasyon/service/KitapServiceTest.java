@@ -51,7 +51,7 @@ class KitapServiceTest {
 
         // Then - Sonucu doğrula
         assertNotNull(result);
-        assertEquals("Test Kitap Degil ", result.getBaslik());
+        assertEquals("Test Kitap ", result.getBaslik());
         assertEquals("Test Yazar", result.getYazar());
         verify(kitapRepository, times(1)).ekle(testKitap);
     }
