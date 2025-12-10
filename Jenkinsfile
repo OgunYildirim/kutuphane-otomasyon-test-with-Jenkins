@@ -22,22 +22,17 @@ pipeline {
         stage('2. Build & Test (Maven Container)') {
             steps {
                 echo '=== Maven container ile derleme ve testler çalıştırılıyor ==='
-                // Maven'ı geçici bir container içinde çalıştırarak derlemeyi yaparız.
-                // KRİTİK ÇÖZÜM: Volume Mount için ${WORKSPACE} (Jenkins'in yolu) kullanılıyor.
-                // Bu, pom.xml'in bulunması için kritik.
-                sh """
-                    # 1. ls -la ile dosya varlığını tekrar kontrol edebiliriz.
+                sh '''
                     ls -la
-                    echo "Jenkins Çalışma Alanı: ${WORKSPACE}"
+                    echo "Jenkins Workspace: ${WORKSPACE}"
 
-                    # 2. Maven Cache Volume Mount yapısı.
-                    docker run --rm \\
-                    -v ${WORKSPACE}:/app \\      // <--- Jenkins'in KESİN YOLU Mount edildi
-                    -v $HOME/.m2:/root/.m2 \\   // <--- Maven Cache
-                    -w /app \\
+                    docker run --rm \
+                    -v ${WORKSPACE}:/app \
+                    -v $HOME/.m2:/root/.m2 \
+                    -w /app \
                     maven:3.9-eclipse-temurin-17 \
-                    mvn clean package -DskipTests
-                """
+                    mvn clean package
+                '''
             }
         }
 
