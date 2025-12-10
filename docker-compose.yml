@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. Jenkins CI Sunucusu (Host Docker'a erişim dahil)
+  # 1. Jenkins CI Sunucusu
   jenkins:
     image: jenkins/jenkins:lts
     privileged: true
@@ -11,22 +11,24 @@ services:
       - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock # KRİTİK: Docker Build/Deploy için erişim
-    # - JENKINS_OPTS kaldırıldı.
+      - /var/run/docker.sock:/var/run/docker.sock # KRİTİK: Jenkins'in Docker komutlarını çalıştırması için
     container_name: jenkins-server
     networks:
       - ci-cd-network
 
-  # 2. İlk Çalıştırma ve Test Amaçlı Uygulama Tanımı (Opsiyonel)
-  #    Bu servis, Jenkins'in DEPLOYMENT aşamasında AYNI isimle (kutuphane-app-server)
-  #    tekrar ayağa kaldırılacağı için, compose dosyasından tamamen kaldırılması önerilir.
-  #    Ancak testi kolaylaştırmak için burada ismini değiştirerek bırakabiliriz.
-  initial-app-placeholder:
-    image: alpine/git # Jenkins build'i başlamadan sadece bir yer tutucu imajı.
-    container_name: kutuphane-app-placeholder
-    # Bu servisin portları kaldırıldı, çünkü asıl deploy Jenkins'ten gelecek.
+  # 2. Uygulama Servisi (Jenkins'in kullanması için burada tanımlı OLMALIDIR)
+  # Jenkins, 'docker-compose up kutuphane-app' dediğinde bu tanımı kullanacaktır.
+  kutuphane-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kutuphane-app-server
+    ports:
+      - "8081:8080" # Host'taki 8081'i kullanacağız
     networks:
       - ci-cd-network
+    # Deployment Jenkins'e ait olduğu için 'restart: unless-stopped' gibi ayarlar burada opsiyoneldir.
+
 
 volumes:
   jenkins_home:
