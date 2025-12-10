@@ -1,52 +1,76 @@
 pipeline {
-    // Pipeline'ın tamamı Jenkins ana agent'ında çalışır.
+    // Pipeline'ın tamamı için herhangi bir agent'ı kullan (Jenkins'in kurulu olduğu makine)
     agent any
 
+    // Ortam değişkenleri, tüm pipeline adımlarında kullanılabilir.
     environment {
-        // Compose dosyanızda uygulamanın servisine verdiğiniz ismi buraya yazın
-        SERVICE_NAME = 'kutuphane-app'
+        JAR_NAME = 'kutuphaneotomasyon-0.0.1-SNAPSHOT.jar'
+        DOCKER_IMAGE_NAME = 'kutuphane-otomasyon'
+        CONTAINER_NAME = 'kutuphane-app-server'
+        HOST_PORT = '8081'      // Uygulamanın host makinede yayınlanacağı port
+        APP_PORT = '8080'       // Uygulamanın container içindeki portu
+
+        // Bu değişken, Docker komutlarının çalışması için kritik:
+        // Jenkins container'ının host Docker soketine erişimini sağlar.
+        DOCKER_HOST_SOCK = '/var/run/docker.sock'
     }
 
     stages {
-        stage('1. Build (Maven Container Içinde Derleme)') {
+        stage('1. Kaynak Kodunu Çekme (SCM Checkout)') {
             steps {
-                echo '>> Maven Container içinde proje derleniyor...'
-
-                // Projenin JAR dosyasını oluşturmak için geçici bir Maven container'ı çalıştırır.
-                // Bu, Jenkins'te Maven kurulu olma zorunluluğunu ortadan kaldırır.
-                sh """
-                    docker run --rm \
-                    -v ${PWD}:/usr/src/app \
-                    -v $HOME/.m2:/root/.m2 \
-                    -w /usr/src/app \
-                    maven:3.8.7-jdk-17 \
-                    mvn clean package -DskipTests
-                """
+                echo '>> GitHub deposundan kodlar çekiliyor...'
+                // Jenkins, Job ayarlarından SCM'i otomatik çeker.
             }
         }
 
-        stage('2. Dockerize (Imaci Olusturma)') {
+        stage('2. Uygulamayı Derleme (Build)') {
+            // Sadece bu aşamayı, Maven'ın yüklü olduğu temiz bir Docker Agent içinde çalıştır.
+            agent {
+                docker {
+                    image 'maven:3.8.7-jdk-17'
+                    // Maven'ın indirdiği JAR dosyasının host makinede görünmesi için workspace'i mount et.
+                    args '-v ${PWD}:/usr/src/app -w /usr/src/app'
+                }
+            }
             steps {
-                echo '>> Docker imajı, docker-compose build ile olusturuluyor...'
-                // Proje kökündeki Dockerfile'ı kullanarak imajı oluşturur.
-                sh "docker-compose build ${SERVICE_NAME}"
+                echo '>> Maven ile proje derleniyor ve JAR oluşturuluyor...'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('3. Deploy (Dagitim)') {
+        stage('3. Docker İmajını Oluşturma') {
             steps {
-                echo ">> docker-compose up ile eski container durdurulup, yeni imaj deploy ediliyor..."
-                // Yeni imajı kullanarak container'ı ayağa kaldırır, eskiyi otomatik durdurur/siler.
-                sh "docker-compose up -d --no-build ${SERVICE_NAME}"
+                echo '>> Docker imajı oluşturuluyor...'
+                script {
+                    // Docker komutlarının çalışabilmesi için host Docker soketini kullan.
+                    sh "docker build -t ${DOCKER_IMAGE_NAME}:latest ."
+                }
+            }
+        }
+
+        stage('4. Dağıtım (Deployment)') {
+            steps {
+                echo ">> Eski container durdurulup yeni imaj deploy ediliyor..."
+                script {
+                    // Mevcut container'ı durdur ve sil (hata verse bile devam et: || true)
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm ${CONTAINER_NAME} || true"
+
+                    // Yeni imajı kullanarak container'ı ayağa kaldır
+                    sh "docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:${APP_PORT} ${DOCKER_IMAGE_NAME}:latest"
+                }
+                echo ">> Uygulama ${HOST_PORT} portunda başarıyla yayınlandı."
             }
         }
     }
 
     post {
         always {
+            // Derlenen JAR dosyasını build geçmişine arşivle
             archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-            echo 'Pipeline tamamlandı. 🥳'
+            echo 'Pipeline tamamlandı.'
         }
+        success { echo 'CI/CD Pipeline Başarılı! 🥳' }
         failure { echo 'CI/CD Pipeline HATA ile sonuçlandı! 🚨' }
     }
 }
